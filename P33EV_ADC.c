@@ -4,15 +4,15 @@
  *
  * Created on 2018年7月3日, 上午11:33
  */
-//#include "p33EV256GM104.h"
- #include <xc.h>
-// #include <stdio.h>
+
+#include <xc.h>
 
 #include "Macro.h"
+#include "P33EV_ADC.h"
+
 #include "Global.h"
 #include "Public.h"
 #include "P33EV_Port.h"
-#include "P33EV_ADC.h"
 #include "P33EV_Function.h"
 #include "P33EV_Interrupt.h"
 #include "P33EV_Timer.h"
@@ -68,7 +68,7 @@ void adc_init(){
     AD1CHS0bits.CH0NA = 0;	    //采样通道负输入选择为=0 AVSS
     
     AD1CSSH = 0x0000;
-    AD1CSSL = 0x01FB;
+    AD1CSSL = 0x01FB;           //根据原理图使用的模拟输入端口配置AD1CSSL和AD1CSSH
     
 //    AD1CHS0bits.CH0SA = 1;
 
@@ -92,94 +92,9 @@ void adc_set_channel(uchar config_byte) {
     AD1CON1bits.ADON = 1;
 }
 
-void adc_samp_continue() {
-// 采样所有通道一次并存入对应的数据缓存区 Timer1中断函数的程序
-    uint ar_adv[8];
-    
-    int ar_adv_full_mark;
-    ar_adv_full_mark = 0;
-    
+void adc_get_data_from_ADC1BUF(uint ar_adv[]) {
+// 将8个通道的采样数据从ADC1BUF中移出到数组
     if (_AD1IF == 1) {
-        
-//        _IPL = 7;
-        ar_adv[0] = ADC1BUF7; 
-        ar_adv[1] = ADC1BUF6; 
-        ar_adv[2] = ADC1BUF5; 
-        ar_adv[3] = ADC1BUF4; 
-        ar_adv[4] = ADC1BUF3; 
-        ar_adv[5] = ADC1BUF2; 
-        ar_adv[6] = ADC1BUF1; 
-        ar_adv[7] = ADC1BUF0; 
-//        _IPL = 4;
-        ar_adv_full_mark = 1;
-        _AD1IF = 0;
-        _DONE = 0;
-//        ulong temp;
-//        temp = ar_adv[6] / 16;
-//        pwm1_output(temp);
-        
-    }
-    int i;
-        for (i=0;i<8;i++) {
-        BufferA.buf[BufferA.p] = ar_adv[i];
-        BufferA.p ++;
-        
-        if (BufferA.p == 800) {
-            BufferA.p = 0;
-            if (dma_sending_mark == 0) {
-                for (i = 0; i < 800; i++) {
-                    BufferC.buf[i] = BufferA.buf[i];
-                }
-                GPIO_19 = 1;
-            } else {
-                timer1_stop();
-                error_code = 2;
-            }
-        }
-    }
-    // if (ar_adv_full_mark == 1) {
-    //     int i;
-    //     for (i = 0; i < 8; i++) {
-    //         // 根据打开的通道保存有效数据
-    //         if ((ad_ch_con >> i) & 1) {
-    //             BufferA.buf[BufferA.p] = ar_adv[i];
-    //             BufferA.p++;
-    //             // 将BufferA复制到BufferC，给出采样完成信号
-    //             if (BufferA.p == BufferA.limit) {
-    //                 BufferA.p = 0;
-    //                 if (dma_sending_mark == 0) {
-
-    //                     // =--------------------------
-    //                     for (i = 0; i < BufferA.limit; i++) {
-    //                         BufferC.buf[i] = BufferA.buf[i];
-    //                     }
-    //                     BufferC.limit = BufferA.limit;
-    //                     GPIO_19 = 1;
-    //                     finish_mark = 1;
-    //                     // ----------------------------
-    //                 } 
-    //                 // 若此时DMA还未将所有数据发送完，数据采集卡将停止采样并给出异常码
-    //                 else {
-    //                     GPIO_19 = 0;
-    //                     finish_mark = 0;
-    //                     timer1_stop();
-    //                     global_var_init();
-    //                     error_code = 2;
-    //                 }
-    //                 break;
-    //             }
-    //         }
-    //     }
-    // }
-}
-
-void adc_samp_some() {
-    uint ar_adv[8];
-    int ar_adv_full_mark;
-    ar_adv_full_mark = 0;
-    
-    if (_AD1IF == 1) {
-        _AD1IF = 0;
         _IPL = 7;
         ar_adv[0] = ADC1BUF7; 
         ar_adv[1] = ADC1BUF6; 
@@ -190,26 +105,68 @@ void adc_samp_some() {
         ar_adv[6] = ADC1BUF1; 
         ar_adv[7] = ADC1BUF0; 
         _IPL = 4;
-        ar_adv_full_mark = 1; 
+        _AD1IF = 0;
+        // _DONE = 0;
     }
-    if (ar_adv_full_mark == 1) {
-        int i;
-        for (i = 0; i < 8; i++) {
-            if ((ad_ch_con >> i) & 1) {
-                BufferA.buf[BufferA.p] = ar_adv[i];
-                BufferA.p++;
-                // 将BufferA复制到BufferC，给出采样完成信号和标志位，停止采样定时器
-                if (BufferA.p == BufferA.limit) {
-                    BufferA.p = 0;
-                    for (i = 0; i < BufferA.limit; i++) {
-                        BufferC.buf[i] = BufferA.buf[i];
-                    }
-                    BufferC.limit = BufferA.limit;
-                    GPIO_19 = 1;
-                    finish_mark = 1;
+}
+
+void adc_BufferA_to_BufferC() {
+    // 将BufferA中的数据转移到BufferC,用于DMA-SPI发送
+    int i;
+    for (i = 0; i < BufferA.limit; i++) {
+        BufferC.buf[i] = BufferA.buf[i];
+    }
+    BufferC.limit = BufferA.limit;
+    GPIO_19 = 1;
+    finish_mark = 1;
+}
+
+
+void adc_samp_continue() {
+// 连续采样模式
+// 采样所有通道一次并存入对应的数据缓存区 Timer1中断函数的程序
+    uint ar_adv[8] = {0};
+    adc_get_data_from_ADC1BUF(ar_adv);
+    int i;
+    for (i = 0; i < 8; i++) {
+        // 根据打开的通道保存有效数据
+        if ((ad_ch_con >> i) & 1) {
+            BufferA.buf[BufferA.p] = ar_adv[i];
+            BufferA.p++;
+            // 将BufferA复制到BufferC，给出采样完成信号
+            if (BufferA.p == BufferA.limit) {
+                BufferA.p = 0;
+                if (dma_sending_mark == 0) {
+                    adc_BufferA_to_BufferC();
+                } 
+                else {
+                    // 若此时DMA还未将所有数据发送完，数据采集卡将停止采样并给出异常码
+                    GPIO_19 = 0;
+                    finish_mark = 0;
                     timer1_stop();
-                    break;
+                    global_var_init();
+                    error_code = 2;
                 }
+                break;
+            }
+        }
+    }
+}
+
+void adc_samp_some() {
+    uint ar_adv[8];
+    adc_get_data_from_ADC1BUF(ar_adv);
+    int i;
+    for (i = 0; i < 8; i++) {
+        if ((ad_ch_con >> i) & 1) {
+            BufferA.buf[BufferA.p] = ar_adv[i];
+            BufferA.p++;
+            // 将BufferA复制到BufferC，给出采样完成信号和标志位，停止采样定时器
+            if (BufferA.p == BufferA.limit) {
+                BufferA.p = 0;
+                adc_BufferA_to_BufferC();
+                timer1_stop();
+                break;
             }
         }
     }

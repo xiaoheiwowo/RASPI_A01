@@ -1,4 +1,7 @@
 .git
 .idea
 /debug
-.
+/dist
+/build
+/nbproject
+

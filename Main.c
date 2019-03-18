@@ -6,9 +6,8 @@
  */
 
 #include "ConfigBit.h"
-//#include "p33EV256GM104.h"
 #include <xc.h>
-//#include <stdio.h>
+
 #include "Macro.h"
 #include "Global.h"
 #include "Public.h"
@@ -21,7 +20,8 @@
 #include "P33EV_ADC.h"
 #include "P33EV_DMASPI.h"
 
-// 定义采样模式 ad_mode = 0(default)
+// 定义采样模式 ad_mode 
+// = 0 (default)
 // = 1 连续采样
 // = 2 有限点采样，有限点采样分为两种，带中断信号的和查询式的，
 // 两种有限点采样在程序上是一样的，区别在于上位机通过何种方式知道数据采集卡完成采样
@@ -104,8 +104,6 @@ int main(void) {
     osc_init();
     adc_init();
     pwm1_init();
-//    OC1RS = 5999;
-//    OC1R = 3000;
     pwm2_init();
     pwm3_init();
     pwm4_init();
@@ -143,16 +141,17 @@ int main(void) {
         }
 
         // 当正在通过SPI收发数据时, 绿色LED亮。
-        if (SS == 0) {
-            LED_GREEN = 0;
-        }
-        else {
-            LED_GREEN = 1;
-        }
+        // !!! ERROR 将SS当作IO端口读取电平状态将导致模拟引脚上的采样数据出错。
+        // if (SS == 0) {
+        //     LED_GREEN = 0;
+        // }
+        // else {
+        //     LED_GREEN = 1;
+        // }
         
         // 命令处理
         switch (cmd_byte) {
-            case 1:
+            case 0x01:
                 // 配置采样通道
                 ad_ch_con = par_byte;
                 int i;
@@ -162,13 +161,13 @@ int main(void) {
                         ad_ch_num += 1;
                     }
                 }
-//                adc_set_channel(ad_ch_con);
+                adc_set_channel(ad_ch_con);
                 break;
-            case 2:
+            case 0x02:
                 // 配置采样间隔
                 samp_interval = par_byte;
                 break;
-            case 3:
+            case 0x03:
                 // 启动采样
                 BufferA.limit = (par_byte + 1) * ad_ch_num;
                 GPIO_19 = 0;
@@ -176,79 +175,79 @@ int main(void) {
                 ad_mode = SAMP_CONTINUE;
                 timer1_start(samp_interval * 1000);
                 break;
-            case 4:
+            case 0x04:
                 // 停止采样
                 timer1_stop();
                 global_var_init();
                 break;
-            case 5:
+            case 0x05:
                 // 查询式有限点采样开始
                 BufferA.limit = (par_byte + 1) * ad_ch_num;
                 GPIO_19 = 0;
                 ad_mode = SAMP_SOME;
                 timer1_start(samp_interval * 1000);
                 break;
-            case 6:
+            case 0x06:
                 // 带中断信号的有限点采样开始
                 BufferA.limit = (par_byte + 1) * ad_ch_num;
                 GPIO_19 = 0;
                 ad_mode = SAMP_SOME;
                 timer1_start(samp_interval * 1000);
                 break;
-            case 7:
+            case 0x07:
                 // 读取数据缓存区
                 dma0_start(BufferC.buf, BufferC.limit);
                 GPIO_19 = 0;
                 finish_mark = 0;
                 break;
                 
-            case 8:
+            case 0x08:
                 // 查询采样完成标志位
                 SPI1BUF = finish_mark;
                 finish_mark = 0;
                 break;
-            case 9:
+            case 0x09:
                 // 读取有限点采样数据
                 dma0_start(BufferC.buf, BufferC.limit);
                 finish_mark = 0;
                 GPIO_19 = 0;
                 global_var_init();
                 break;
-            case 10:
+            case 0x0A:
                 // 模拟输出通道1
                 pwm1_output(par_byte);
                 break;
-            case 11:
+            case 0x0B:
                 // 模拟输出通道2
                 pwm2_output(par_byte);
                 break;
-            case 12:
+            case 0x0C:
                 // 模拟输出通道3
                 pwm3_output(par_byte);
                 break;
-            case 13:
+            case 0x0D:
                 // 模拟输出通道4
                 pwm4_output(par_byte);
                 break;
-            case 14:
+            case 0x0E:
                 // 配置IO端口
                 set_io(par_byte);
                 break;
-            case 15:
+            case 0x0F:
                 // 读IO端口
                 SPI1BUF = read_io();
                 break;
-            case 16:
+            case 0x10:
                 // 写IO端口
                 write_io(par_byte);
                 break;
-            case 17:
+            case 0x11:
                 // 异常码
                 SPI1BUF = error_code;
                 error_code = 0;
                 break;
                 
-            case 254:
+            case 0xFE:
                 // 软件复位 通过SPI发送复位命令
                 if (par_byte == 0xFE) {
                     pic_reset();

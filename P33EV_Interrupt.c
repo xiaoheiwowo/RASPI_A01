@@ -9,11 +9,11 @@
 #include <stdlib.h>
 #include <xc.h>
 
-#include "Macro.h"
-#include "P33EV_Function.h"
-#include "P33EV_ADC.h"
-#include "P33EV_Port.h"
-#include "P33EV_Interrupt.h"
+// #include "Macro.h"
+// #include "P33EV_Function.h"
+// #include "P33EV_ADC.h"
+// #include "P33EV_Port.h"
+// #include "P33EV_Interrupt.h"
 
 
 void interrupt_enable() {
