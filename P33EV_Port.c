@@ -28,7 +28,7 @@ void port_init() {
     // SDI input
     TRISAbits.TRISA9 = 1;
     // SS input
-    TRISBbits.TRISB0 = 0;
+    TRISBbits.TRISB0 = 1;
 //    TRISCbits.TRISC3 = 1;
     //    AD0 --> AN8
     //    AD1 --> AN7

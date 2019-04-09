@@ -40,7 +40,7 @@ void spi_init() {
     // SPI1CON1 Register Settings
     SPI1CON1bits.DISSCK = 0; // Internal Serial Clock is enabled
     SPI1CON1bits.DISSDO = 0; // SDOx pin is controlled by the module
-    SPI1CON1bits.SSEN = 0;      // enable ss
+    SPI1CON1bits.SSEN = 1;      // enable ss
     SPI1CON1bits.MODE16 = 1; // 1:16bits | 0:8bits
     SPI1CON1bits.SMP = 0; // Input data is sampled at the middle of data output time.
 
